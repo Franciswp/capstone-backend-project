@@ -1,0 +1,12 @@
+flask
+pymongo[srv]
+redis
+python-dotenv
+pydantic
+gunicorn
+pyjwt
+werkzeug
+pytest
+fakeredis
+mongomock
+flask_cors
