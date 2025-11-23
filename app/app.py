@@ -5,7 +5,6 @@ import io
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, make_response
 from flask_cors import CORS
-
 from common import init_db_and_redis, ensure_indexes_db
 
 # Import blueprints
@@ -21,10 +20,10 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "config.example"
 def create_app() -> Flask:
     app = Flask(__name__)
 
-    # Enable CORS for specified origins
-    CORS(app, resources={r"/*": {"origins": ["*"]}}, supports_credentials=True)
+    # Set up CORS
+    CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}}, supports_credentials=True)
 
-    # Load configuration into app.config for convenience
+    # Load config into app.config for convenience
     app.config["HOLD_TTL_SECONDS"] = int(os.environ.get("HOLD_TTL_SECONDS", 600))
     app.config["JWT_SECRET"] = os.environ.get("JWT_SECRET")
     app.config["LUA_PATH"] = os.path.join(os.path.dirname(__file__), "hold_seats.lua")
@@ -33,7 +32,7 @@ def create_app() -> Flask:
     mc, mdb, r, hold_seats_sha = init_db_and_redis(app)
     ensure_indexes_db(mdb)
 
-    # Attach the database clients to the app
+    # Store clients in app context
     app.mongodb_client = mc
     app.mdb = mdb
     app.redis = r
@@ -46,11 +45,18 @@ def create_app() -> Flask:
     app.register_blueprint(payments_bp, url_prefix="/payments")
     app.register_blueprint(reviews_bp, url_prefix="/reviews")
 
+    @app.after_request
+    def after_request(response):
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+        return response
+
     @app.route("/screenings/<string:screening_id>", methods=["GET", "OPTIONS"])
     def get_screening(screening_id: str):
         if request.method == "OPTIONS":
             resp = make_response("", 204)
-            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
             resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
             resp.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
             resp.headers["Access-Control-Allow-Credentials"] = "true"
@@ -58,7 +64,7 @@ def create_app() -> Flask:
 
         # Normal GET logic
         resp = make_response("...", 200)
-        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
         resp.headers["Access-Control-Allow-Credentials"] = "true"
         return resp
 
@@ -82,6 +88,11 @@ if __name__ == "__main__":
     try:
         # Run the backend application
         application = create_app()
-        application.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
+        application.run(
+            host="0.0.0.0",
+            port=5000,
+            debug=False,
+            use_reloader=False,
+        )
     except Exception as e:
         print(f"An error occurred: {e}")

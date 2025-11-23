@@ -142,3 +142,29 @@ def me():
     for k in ('hashed_password', 'password', 'salt'):
         out.pop(k, None)
     return jsonify(out), 200
+
+#List Users Route
+@users_bp.route("/", methods=["GET"])
+def list_users():
+    """GET /users/ Fetch all users from the database."""
+    try:
+        limit = int(request.args.get("limit", 50))
+        skip = int(request.args.get("skip", 0))
+    except ValueError:
+        return jsonify({"error": "invalid_pagination_params"}), 400
+
+    # Safety cap on limit
+    limit = max(1, min(limit, 200))
+    cursor = (current_app.mdb.users.find({})
+              .skip(skip)
+              .limit(limit))
+
+    users = []
+    for doc in cursor:
+        user_json = doc_to_json(doc)
+        # Remove sensitive fields
+        for k in ("hashed_password", "password", "salt"):
+            user_json.pop(k, None)
+        users.append(user_json)
+
+    return jsonify(users), 200

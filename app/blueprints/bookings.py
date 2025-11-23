@@ -1,9 +1,9 @@
-# app/blueprints/bookings.py  (snippet: confirm endpoint)
 import os
 import uuid
 from flask import Blueprint, request, jsonify, g, current_app
 from bson import ObjectId
 from datetime import datetime
+
 # Ensure this import is near the top of the file, before any @auth_required usage
 try:
     from auth import auth_required
@@ -32,9 +32,8 @@ def confirm_booking():
     if not (hold_id and seat_labels and screening_id):
         return jsonify({'error': 'hold_id, screening_id and seat_labels required'}), 400
 
-    # prepare redis keys
+    # Prepare redis keys
     keys = [f"screening:{screening_id}:seat:{s}" for s in seat_labels]
-
     r = current_app.redis
 
     # Load confirm script into redis if needed
@@ -53,7 +52,7 @@ def confirm_booking():
     try:
         res = r.evalsha(confirm_sha, len(keys), *keys, hold_id, owner, booking_id, reserve_ttl)
     except Exception as e:
-        # reload script in case of SCRIPTFLUSH and retry once
+        # Reload script in case of SCRIPTFLUSH and retry once
         with open(confirm_path, 'r') as fh:
             confirm_sha = r.script_load(fh.read())
         current_app.confirm_reserve_sha = confirm_sha
@@ -79,7 +78,8 @@ def confirm_booking():
             if idempotency_key:
                 existing = bookings_col.find_one({'idempotency_key': idempotency_key})
                 if existing:
-                    return jsonify({'ok': True, 'booking': doc_to_json(existing), 'idempotent': True}), 200
+                    return jsonify({'ok': True, 'booking': existing, 'idempotent': True}), 200
+
             # Rollback Redis reservation best-effort
             for k in keys:
                 try:
@@ -88,7 +88,7 @@ def confirm_booking():
                     pass
             return jsonify({'error': 'db_insert_failed', 'detail': str(e)}), 500
 
-        # persist booking seats
+        # Persist booking seats
         seat_docs = []
         now = datetime.utcnow()
         for s in seat_labels:
@@ -102,9 +102,9 @@ def confirm_booking():
             current_app.mdb.booking_seats.insert_many(seat_docs)
 
         return jsonify({'ok': True, 'booking_id': str(booking_doc['_id'])}), 201
-
     else:
         unavailable = []
         if isinstance(res, list) and res and res[0] == "0":
             unavailable = res[2:] if len(res) > 2 else []
+
         return jsonify({'ok': False, 'unavailable_keys': unavailable}), 409
