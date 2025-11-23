@@ -47,7 +47,7 @@ def create_app() -> Flask:
 
     @app.after_request
     def after_request(response):
-        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+        response.headers.add('Access-Control-Allow-Origin', 'https://movie-booking-service-enz8.onrender.com/')
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
         response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
         return response
@@ -64,7 +64,7 @@ def create_app() -> Flask:
 
         # Normal GET logic
         resp = make_response("...", 200)
-        resp.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
+        resp.headers["Access-Control-Allow-Origin"] = ["http://localhost:5173", "https://movie-booking-service-enz8.onrender.com/"]
         resp.headers["Access-Control-Allow-Credentials"] = "true"
         return resp
 

@@ -37,29 +37,54 @@ def register():
 
 @users_bp.route('/login', methods=['POST'])
 def login():
+    if request.method == "OPTIONS":
+        # Handle preflight request
+        resp = make_response("", 204)
+        resp.headers["Access-Control-Allow-Origin"] = ["http://localhost:5173","https://movie-booking-service-enz8.onrender.com/"]
+        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+        resp.headers["Access-Control-Allow-Credentials"] = "true"  # Important
+        return resp
+
+    # Handle the login request
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
+
     if not (email and password):
         return jsonify({'error': 'email_and_password_required'}), 400
+
     user = current_app.mdb.users.find_one({'email': email.lower()})
     if not user:
         return jsonify({'error': 'invalid_credentials'}), 401
+
     if not verify_password(user.get('hashed_password', ''), password):
         return jsonify({'error': 'invalid_credentials'}), 401
 
     user_id = str(user['_id'])
     role = user.get('role', 'customer')
+
+    # Generate access and refresh tokens
     access = make_access_token(user_id, role)
     refresh = make_refresh_token(user_id)
 
     # Persist refresh token in DB for possible revocation and rotation
     current_app.mdb.refresh_tokens.insert_one({
-        '_id': refresh,  # store token itself as _id for quick lookup
+        '_id': refresh,  # Store token itself as _id for quick lookup
         'user_id': ObjectId(user_id),
         'created_at': datetime.utcnow()
     })
-    return jsonify({'access_token': access, 'refresh_token': refresh, 'role': role}), 200
+
+    # Prepare successful response
+    response_data = {
+        'access_token': access,
+        'refresh_token': refresh,
+        'role': role
+    }
+    resp = make_response(jsonify(response_data), 200)
+    resp.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
+    resp.headers["Access-Control-Allow-Credentials"] = "true"  # Important
+    return resp
 
 @users_bp.route('/refresh', methods=['POST'])
 def refresh():
